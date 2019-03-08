@@ -1,0 +1,14 @@
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: postgres-user
+  namespace: sonarqube
+subjects:
+  - kind: ServiceAccount
+    name: postgres
+  - kind: ServiceAccount
+    name: sonarqube
+roleRef:
+  kind: Role
+  name: postgres-user
+  apiGroup: rbac.authorization.k8s.io

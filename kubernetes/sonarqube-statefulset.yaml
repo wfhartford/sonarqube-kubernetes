@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: sonarqube
+  namespace: sonarqube
+  labels:
+    app: sonarqube
+spec:
+  selector:
+    matchLabels:
+      app: sonarqube
+  serviceName: sonarqube
+  template:
+    metadata:
+      labels:
+        app: sonarqube
+    spec:
+      securityContext:
+        fsGroup: 999
+      serviceAccountName: sonarqube
+      initContainers:
+        - name: sysctl
+          image: busybox
+          imagePullPolicy: IfNotPresent
+          command: ["sysctl", "-w", "vm.max_map_count=262144"]
+          securityContext:
+            privileged: true
+      containers:
+      - name: sonarqube
+        image: sonarqube:7.6-community
+        securityContext:
+          runAsUser: 999
+          privileged: true
+          capabilities:
+            add:
+            - IPC_LOCK
+            - SYS_RESOURCE
+        env:
+        - name: sonar.jdbc.url
+          value: jdbc:postgresql://postgres:5432/postgres
+        - name: sonar.jdbc.username
+          value: postgres
+        - name: sonar.jdbc.password
+          valueFrom:
+            secretKeyRef:
+              name: postgres
+              key: password
+        resources:
+          limits:
+            memory: 2Gi
+            cpu: 2
+          requests:
+            memory: 2Gi
+            cpu: 200m
+        ports:
+        - name: http
+          containerPort: 9000
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 60
+          timeoutSeconds: 1
+          periodSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 5
+          timeoutSeconds: 1
+          periodSeconds: 5
+        volumeMounts:
+        - name: data
+          mountPath: /opt/sonarqube/data
+        - name: extensions
+          mountPath: /opt/sonarqube/extensions
+        - name: config
+          mountPath: /opt/sonarqube/conf
+        - name: temp
+          mountPath: /opt/sonarqube/temp
+        - name: logs
+          mountPath: /opt/sonarqube/logs
+      volumes:
+      - name: config
+        configMap:
+          name: sonarqube
+      - name: temp
+        emptyDir: {}
+      - name: logs
+        emptyDir: {}
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 8Gi
+  - metadata:
+      name: extensions
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 8Gi
